@@ -5,11 +5,10 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
-      force:
-        description: 'Force initial sync (use --init-history)'
+      last_rev:
+        description: 'Initial sync: source commit SHA that matches current destination state'
         required: false
-        default: 'false'
-        type: boolean
+        type: string
 
 jobs:
   copy:
@@ -67,11 +66,11 @@ jobs:
       - name: Run workflow
         env:
           RENDER_OSS_TOKEN: ${{ steps.generate-token-oss.outputs.token }}
-          FORCE_INIT: ${{ github.event.inputs.force }}
+          LAST_REV: ${{ github.event.inputs.last_rev }}
         run: |
           EXTRA_ARGS=""
-          if [ "$FORCE_INIT" = "true" ]; then
-            EXTRA_ARGS="--init-history"
+          if [ -n "$LAST_REV" ]; then
+            EXTRA_ARGS="--last-rev $LAST_REV"
           fi
           java -jar copybara_deploy.jar copy.bara.sky push \
             --git-destination-url "https://$USER:$RENDER_OSS_TOKEN@github.com/render-oss/render-mcp-server.git" \
