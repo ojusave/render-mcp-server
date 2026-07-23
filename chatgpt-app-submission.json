@@ -1,0 +1,344 @@
+{
+  "$schema": "https://developers.openai.com/apps-sdk/schemas/chatgpt-app-submission.v1.json",
+  "schema_version": 1,
+  "app_info": {
+    "display_name": "Render",
+    "subtitle": "Manage Render resources",
+    "description": "Render helps users inspect services, deploys, logs, and metrics; create services and data stores; query Render Postgres databases; trigger deployments; and manage environment variables through ChatGPT.",
+    "category": "DEVELOPER_TOOLS"
+  },
+  "tools": {
+    "list_workspaces": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Lists accessible workspaces and may persist the sole workspace as the active session selection.",
+        "open_world_justification": "Only changes a private MCP session selection and does not publish or message externally.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, or perform an irreversible action."
+      }
+    },
+    "select_workspace": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Persists the selected Render workspace in the current MCP session.",
+        "open_world_justification": "Only changes private session state and does not alter a Render resource or public internet state.",
+        "destructive_justification": "Changes the active workspace selection without deleting or overwriting Render resources."
+      }
+    },
+    "get_selected_workspace": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves the workspace currently selected in the MCP session.",
+        "open_world_justification": "Does not change public internet state or any external system.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, or perform an irreversible action."
+      }
+    },
+    "list_services": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves services visible in the selected Render workspace.",
+        "open_world_justification": "Does not change Render resources or public internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, or perform an irreversible action."
+      }
+    },
+    "get_service": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves details for the specified Render service.",
+        "open_world_justification": "Does not change Render resources or public internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, or perform an irreversible action."
+      }
+    },
+    "create_web_service": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Creates a new Render web service and may start its initial deployment.",
+        "open_world_justification": "Creates an externally hosted service that can be publicly reachable on the internet.",
+        "destructive_justification": "Creates a new resource without deleting or overwriting an existing Render resource."
+      }
+    },
+    "create_static_site": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Creates a new Render static site and may start its initial deployment.",
+        "open_world_justification": "Creates a publicly reachable site hosted on Render's global CDN.",
+        "destructive_justification": "Creates a new resource without deleting or overwriting an existing Render resource."
+      }
+    },
+    "create_cron_job": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Creates a scheduled Render cron job that runs the configured command.",
+        "open_world_justification": "Creates and schedules a workload in the user's external Render account.",
+        "destructive_justification": "Creates a new resource without deleting or overwriting an existing Render resource."
+      }
+    },
+    "update_environment_variables": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Writes environment variables to a Render service and triggers the associated configuration update.",
+        "open_world_justification": "Changes service configuration in the user's external Render account.",
+        "destructive_justification": "Replace mode overwrites the complete environment-variable set and can remove existing values."
+      }
+    },
+    "list_deploys": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves deployment history for the specified Render service.",
+        "open_world_justification": "Does not trigger deployments or change Render resources.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, or perform an irreversible action."
+      }
+    },
+    "get_deploy": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves details for a specified service deployment.",
+        "open_world_justification": "Does not trigger deployments or change Render resources.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, or perform an irreversible action."
+      }
+    },
+    "trigger_deploy": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Starts a new deployment for the specified Render service.",
+        "open_world_justification": "Can replace the version of a service available through its external Render deployment.",
+        "destructive_justification": "A deployment can replace the currently running version, and clear-cache mode also discards build cache state."
+      }
+    },
+    "list_postgres_instances": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves Postgres instances visible in the selected Render workspace.",
+        "open_world_justification": "Does not create or change a database or public internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, or perform an irreversible action."
+      }
+    },
+    "get_postgres": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves metadata for the specified Render Postgres instance.",
+        "open_world_justification": "Does not create or change a database or public internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, or perform an irreversible action."
+      }
+    },
+    "create_postgres": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Creates a new Postgres instance in the selected Render workspace.",
+        "open_world_justification": "Creates a managed database in the user's external Render account.",
+        "destructive_justification": "Creates a new database without deleting or overwriting an existing resource."
+      }
+    },
+    "query_render_postgres": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Executes SQL inside a database transaction explicitly configured as read-only.",
+        "open_world_justification": "Only retrieves database results and does not change Render resources or public internet state.",
+        "destructive_justification": "The read-only transaction prevents queries from mutating or deleting database records."
+      }
+    },
+    "list_key_value": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves Key Value instances visible in the selected Render workspace.",
+        "open_world_justification": "Does not create or change a data store or public internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, or perform an irreversible action."
+      }
+    },
+    "get_key_value": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves metadata for the specified Render Key Value instance.",
+        "open_world_justification": "Does not create or change a data store or public internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, or perform an irreversible action."
+      }
+    },
+    "create_key_value": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Creates a new Key Value instance in the selected Render workspace.",
+        "open_world_justification": "Creates a managed data store in the user's external Render account.",
+        "destructive_justification": "Creates a new data store without deleting or overwriting an existing resource."
+      }
+    },
+    "list_logs": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves logs matching the supplied resource, time, and label filters.",
+        "open_world_justification": "Does not write logs, change Render resources, or alter public internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, or perform an irreversible action."
+      }
+    },
+    "list_log_label_values": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves available values for a log label under the supplied filters.",
+        "open_world_justification": "Does not write logs, change Render resources, or alter public internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, or perform an irreversible action."
+      }
+    },
+    "get_metrics": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves time-series performance metrics for the specified Render resource.",
+        "open_world_justification": "Does not change resource configuration or public internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, or perform an irreversible action."
+      }
+    }
+  },
+  "test_cases": [
+    {
+      "description": "Create a web service from a repository with explicit runtime commands.",
+      "user_prompt": "Create a free Node web service named example-api from my repository, build it with npm ci, and start it with npm start.",
+      "file_attachment_urls": null,
+      "tools_triggered": "create_web_service",
+      "expected_output": "Creates the web service with the requested configuration and returns its Render resource details.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Investigate recent errors using bounded log filters.",
+      "user_prompt": "Show error-level logs for service srv-example from the last hour, newest first.",
+      "file_attachment_urls": null,
+      "tools_triggered": "list_logs",
+      "expected_output": "Returns matching recent error logs for the specified service and time window.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Inspect CPU and memory usage for capacity analysis.",
+      "user_prompt": "Get CPU and memory usage for srv-example over the last two hours at five-minute resolution.",
+      "file_attachment_urls": null,
+      "tools_triggered": "get_metrics",
+      "expected_output": "Returns timestamped CPU and memory measurements for the requested period and resolution.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Run a read-only aggregate query against Render Postgres.",
+      "user_prompt": "On Postgres instance dpg-example, count orders grouped by status without changing any data.",
+      "file_attachment_urls": null,
+      "tools_triggered": "query_render_postgres",
+      "expected_output": "Runs the aggregate in a read-only transaction and returns the grouped counts.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Replace service environment variables as an explicit destructive operation.",
+      "user_prompt": "Replace all environment variables on srv-example with NODE_ENV=production and LOG_LEVEL=info.",
+      "file_attachment_urls": null,
+      "tools_triggered": "update_environment_variables",
+      "expected_output": "Replaces the service environment-variable set with the two supplied values and reports the resulting update.",
+      "expected_output_url": null
+    }
+  ],
+  "negative_test_cases": [
+    {
+      "description": "Do not trigger for another hosting provider.",
+      "user_prompt": "List all of my deployments on Vercel.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app should not be invoked because it only manages resources hosted on Render.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Do not trigger for a general programming explanation.",
+      "user_prompt": "Explain how database connection pooling works in Go.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app should not be invoked because the request does not require Render account data or actions.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Do not trigger for an unsupported service deletion.",
+      "user_prompt": "Permanently delete my Render service srv-example.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app should not invoke a tool because this MCP server does not expose service deletion.",
+      "expected_output_url": null
+    }
+  ]
+}
