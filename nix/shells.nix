@@ -7,7 +7,7 @@
 
     profilePackages = with pkgs; [
       # Golang
-      go_1_26
+      go_1_27
       goreleaser
 
       # Basic unix tools
