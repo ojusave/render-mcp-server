@@ -23,7 +23,7 @@ require (
 	github.com/spf13/cast v1.9.2 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
-	github.com/yuin/gopher-lua v1.1.1 // indirect
+	github.com/yuin/gopher-lua v1.1.2 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/mod v0.34.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
