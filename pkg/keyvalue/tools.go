@@ -123,7 +123,7 @@ func createKeyValue(keyValueRepo *Repo) server.ServerTool {
 			),
 			mcp.WithString("persistenceMode",
 				mcp.Description("The data persistence behavior for the Key Value store"),
-				mcp.Enum(mcpserver.EnumValuesFromClientType(client.JournalSnapshot, client.Snapshot, client.Off)...),
+				mcp.Enum(mcpserver.EnumValuesFromClientType(client.PersistenceModeJournalSnapshot, client.PersistenceModeSnapshot, client.PersistenceModeOff)...),
 			),
 		),
 		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {

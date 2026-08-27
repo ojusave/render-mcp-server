@@ -52,9 +52,9 @@ func TestContextWithHTTPRequest_UserAgent(t *testing.T) {
 
 func TestContextWithHTTPRequest_XFFChainBuilding(t *testing.T) {
 	tests := []struct {
-		name       string
+		name        string
 		existingXFF string
-		remoteAddr string
+		remoteAddr  string
 		expectedXFF string
 	}{
 		{
@@ -215,4 +215,3 @@ func TestBuildXFF(t *testing.T) {
 		})
 	}
 }
-
