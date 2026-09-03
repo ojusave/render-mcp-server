@@ -5,15 +5,19 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
 	"github.com/render-oss/render-mcp-server/pkg/client"
 	envvar "github.com/render-oss/render-mcp-server/pkg/client/envvar"
 	"github.com/render-oss/render-mcp-server/pkg/deploy"
 	"github.com/render-oss/render-mcp-server/pkg/fakes"
 	"github.com/render-oss/render-mcp-server/pkg/pointers"
 	"github.com/render-oss/render-mcp-server/pkg/session"
+	"github.com/render-oss/render-mcp-server/pkg/validate"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -604,6 +608,46 @@ func TestMergeEnvVars(t *testing.T) {
 
 			assert.NoError(t, err, "Expected no error but got one")
 			assert.ElementsMatch(t, tt.expected, mergedEnvVars, "Environment variables don't match expected values")
+		})
+	}
+}
+
+// specBasedPlanPattern matches the spec-based compute plan names introduced by
+// the plan rename (e.g. "0.5c-512mb", "12c-96g").
+var specBasedPlanPattern = regexp.MustCompile(`^[0-9]+(\.[0-9]+)?c-[0-9]+(mb|g)$`)
+
+// planEnumFromTool reads the advertised enum for a tool's "plan" parameter.
+func planEnumFromTool(t *testing.T, tool server.ServerTool) []string {
+	t.Helper()
+
+	planProp, ok := tool.Tool.InputSchema.Properties["plan"].(map[string]any)
+	require.True(t, ok, "tool %q has no plan property", tool.Tool.Name)
+
+	values, ok := planProp["enum"].([]string)
+	require.True(t, ok, "tool %q plan property has no string enum", tool.Tool.Name)
+
+	return values
+}
+
+// TestServiceToolPlanEnumsAreAccepted pins both service-creating tools' plan
+// parameters to the generated enum. Advertising a plan validate.ServicePlan
+// rejects is an error the MCP client only discovers by calling the tool, and
+// requiring a spec-based name catches a schema that has been pinned to a
+// hardcoded list and so no longer picks up newly added plans.
+func TestServiceToolPlanEnumsAreAccepted(t *testing.T) {
+	repo := NewRepo(&fakes.FakeServiceRepoClient{})
+
+	for _, tool := range []server.ServerTool{createWebService(repo), createCronJob(repo)} {
+		t.Run(tool.Tool.Name, func(t *testing.T) {
+			plans := planEnumFromTool(t, tool)
+
+			for _, plan := range plans {
+				_, err := validate.ServicePlan(plan)
+				assert.NoError(t, err, "advertised plan %q is rejected by validate.ServicePlan", plan)
+			}
+
+			assert.True(t, slices.ContainsFunc(plans, specBasedPlanPattern.MatchString),
+				"no spec-based plan name advertised, got %v", plans)
 		})
 	}
 }

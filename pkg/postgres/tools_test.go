@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -12,6 +14,7 @@ import (
 	"github.com/render-oss/render-mcp-server/pkg/fakes"
 	"github.com/render-oss/render-mcp-server/pkg/pointers"
 	"github.com/render-oss/render-mcp-server/pkg/session"
+	"github.com/render-oss/render-mcp-server/pkg/validate"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -100,4 +103,28 @@ func createTestContext(t *testing.T, workspaceID string) context.Context {
 	sess := session.FromContext(ctx)
 	sess.SetWorkspace(ctx, workspaceID)
 	return ctx
+}
+
+// TestCreatePostgresToolPlanEnumIsAccepted pins the create_postgres plan
+// parameter to the generated enum. Advertising a plan validate.PostgresPlan
+// rejects is an error an MCP client only discovers by calling the tool, and
+// requiring a spec-based name catches a schema that has been pinned to a
+// hardcoded list and so no longer picks up newly added plans.
+func TestCreatePostgresToolPlanEnumIsAccepted(t *testing.T) {
+	repo := NewRepo(&fakes.FakePostgresRepoClient{})
+	tool := createPostgres(repo)
+
+	planProp, ok := tool.Tool.InputSchema.Properties["plan"].(map[string]any)
+	require.True(t, ok, "create_postgres has no plan property")
+	plans, ok := planProp["enum"].([]string)
+	require.True(t, ok, "create_postgres plan property has no string enum")
+
+	for _, plan := range plans {
+		_, err := validate.PostgresPlan(plan)
+		assert.NoError(t, err, "advertised plan %q is rejected by validate.PostgresPlan", plan)
+	}
+
+	specBased := regexp.MustCompile(`^[0-9]+(\.[0-9]+)?c-[0-9]+(mb|g)$`)
+	assert.True(t, slices.ContainsFunc(plans, specBased.MatchString),
+		"no spec-based plan name advertised, got %v", plans)
 }

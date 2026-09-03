@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -11,6 +13,7 @@ import (
 	"github.com/render-oss/render-mcp-server/pkg/fakes"
 	"github.com/render-oss/render-mcp-server/pkg/pointers"
 	"github.com/render-oss/render-mcp-server/pkg/session"
+	"github.com/render-oss/render-mcp-server/pkg/validate"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -99,4 +102,28 @@ func createTestContext(t *testing.T, workspaceID string) context.Context {
 	sess := session.FromContext(ctx)
 	sess.SetWorkspace(ctx, workspaceID)
 	return ctx
+}
+
+// TestCreateKeyValueToolPlanEnumIsAccepted pins the create_key_value plan
+// parameter to the generated enum. The schema is built from
+// KeyValuePlanValues() while the handler validates against the generated
+// Valid(), so the two can diverge, and requiring a spec-based memory-size name
+// catches a schema pinned to a hardcoded list.
+func TestCreateKeyValueToolPlanEnumIsAccepted(t *testing.T) {
+	repo := NewRepo(&fakes.FakeKeyValueRepoClient{})
+	tool := createKeyValue(repo)
+
+	planProp, ok := tool.Tool.InputSchema.Properties["plan"].(map[string]any)
+	require.True(t, ok, "create_key_value has no plan property")
+	plans, ok := planProp["enum"].([]string)
+	require.True(t, ok, "create_key_value plan property has no string enum")
+
+	for _, plan := range plans {
+		_, err := validate.KeyValuePlan(plan)
+		assert.NoError(t, err, "advertised plan %q is rejected by validate.KeyValuePlan", plan)
+	}
+
+	specBased := regexp.MustCompile(`^[0-9]+(mb|g)$`)
+	assert.True(t, slices.ContainsFunc(plans, specBased.MatchString),
+		"no spec-based plan name advertised, got %v", plans)
 }
