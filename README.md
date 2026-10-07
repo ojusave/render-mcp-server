@@ -357,3 +357,46 @@ session-based behavior is deprecated and is scheduled for removal.
     - `journal_snapshot`: Append all writes to a journal and periodically save a snapshot to disk
     - `snapshot`: Periodically save a snapshot to disk
     - `off`: Disable persistence completely to prioritize write performance
+
+### Sandboxes
+
+Render Sandboxes are isolated Linux microVMs for running code away from your machine. Sandboxes are in early access, so the workspace must have them enabled.
+
+- **run_in_new_sandbox** - Create a sandbox, write files, run one command, return the output, and terminate the sandbox
+  - `command`: Bash command to run, starting in `/root` (string, required)
+  - `files`: Map of file path to text content, written before the command runs (object, optional)
+  - `timeoutSeconds`: Stop the command after this many seconds, default 120, max 600 (number, optional)
+  - `network`: `allow-all` (default), `deny-all`, or `allow-list` (string, optional)
+  - `allowedDomains`: With `allow-list`, the only domains the sandbox may reach over HTTP and HTTPS (array, optional)
+
+- **create_sandbox** - Create a sandbox and wait until it is running
+  - `lifetimeSeconds`: Hard limit before the sandbox is terminated, default 1800, max 86400 (number, optional)
+  - `snapshot`: Snapshot ID (`snp-...`) or name to start from (string, optional)
+  - `env`: Environment variables visible to every command (object, optional)
+  - `network`, `allowedDomains`: As above
+
+- **run_sandbox_command** - Run a bash command in a sandbox and return stdout, stderr, and the exit code
+  - `sandboxId`: The sandbox ID (string, required)
+  - `command`: Bash command line (string, required)
+  - `timeoutSeconds`: Default 120, max 600 (number, optional)
+
+- **write_sandbox_file** - Create or overwrite a text file in a sandbox
+  - `sandboxId`, `path`, `content` (strings, required)
+
+- **read_sandbox_file** - Read a text file from a sandbox
+  - `sandboxId`, `path` (strings, required)
+  - `maxBytes`: Default 50000, max 200000 (number, optional)
+
+- **list_sandbox_files** - List a directory in a sandbox
+  - `sandboxId` (string, required), `path` (string, optional, default `/root`)
+
+- **list_sandboxes** - List sandboxes in the workspace
+  - `includeTerminated`: Include terminated sandboxes (boolean, optional)
+
+- **snapshot_sandbox** - Save a running sandbox's filesystem so new sandboxes can start from it
+  - `sandboxId` (string, required), `name` (string, optional)
+
+- **list_sandbox_snapshots** - List snapshots that are available to restore
+
+- **terminate_sandbox** - Terminate a sandbox and delete its filesystem
+  - `sandboxId` (string, required)
