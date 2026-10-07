@@ -27,6 +27,7 @@ import (
 	"github.com/render-oss/render-mcp-server/pkg/oauth"
 	"github.com/render-oss/render-mcp-server/pkg/owner"
 	"github.com/render-oss/render-mcp-server/pkg/postgres"
+	"github.com/render-oss/render-mcp-server/pkg/sandbox"
 	"github.com/render-oss/render-mcp-server/pkg/service"
 	"github.com/render-oss/render-mcp-server/pkg/session"
 	"github.com/render-oss/render-mcp-server/pkg/workspace"
@@ -165,6 +166,7 @@ func buildWorkspaceScopedTools(c *client.ClientWithResponses) []server.ServerToo
 	tools = append(tools, keyvalue.Tools(c)...)
 	tools = append(tools, logs.Tools(c)...)
 	tools = append(tools, metrics.Tools(c)...)
+	tools = append(tools, sandbox.Tools(c)...)
 
 	tools = workspace.AddWorkspaceIDParam(tools...)
 	return workspace.ScopeTools(workspace.NewResolver(c), tools...)
