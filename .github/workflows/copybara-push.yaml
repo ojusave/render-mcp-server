@@ -74,4 +74,16 @@ jobs:
           fi
           java -jar copybara_deploy.jar copy.bara.sky push \
             --git-destination-url "https://$USER:$RENDER_OSS_TOKEN@github.com/render-oss/render-mcp-server.git" \
+            --ignore-noop \
             $EXTRA_ARGS
+      - name: Notify Slack on failure
+        if: failure()
+        uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v4.0.0
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          payload: |
+            {
+              "channel": "ci-cd-failures",
+              "text": "copybara-push failed, so render-oss/render-mcp-server is not receiving updates.\nFailed run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
