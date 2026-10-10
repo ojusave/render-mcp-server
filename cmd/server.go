@@ -29,6 +29,7 @@ import (
 	"github.com/render-oss/render-mcp-server/pkg/postgres"
 	"github.com/render-oss/render-mcp-server/pkg/service"
 	"github.com/render-oss/render-mcp-server/pkg/session"
+	"github.com/render-oss/render-mcp-server/pkg/workflow"
 	"github.com/render-oss/render-mcp-server/pkg/workspace"
 )
 
@@ -166,8 +167,14 @@ func buildWorkspaceScopedTools(c *client.ClientWithResponses) []server.ServerToo
 	tools = append(tools, logs.Tools(c)...)
 	tools = append(tools, metrics.Tools(c)...)
 
-	tools = workspace.AddWorkspaceIDParam(tools...)
-	return workspace.ScopeTools(workspace.NewResolver(c), tools...)
+	resolver := workspace.NewResolver(c)
+	scopeTools := func(tools []server.ServerTool) []server.ServerTool {
+		return workspace.ScopeTools(resolver, workspace.AddWorkspaceIDParam(tools...)...)
+	}
+	tools = scopeTools(tools)
+	// Bound workspace resolution and Workflows API reads together.
+	workflowTools := workflow.WithLimits(scopeTools(workflow.Tools(c)))
+	return append(tools, workflowTools...)
 }
 
 // newHTTPMux serves /mcp behind the OAuth middleware plus the RFC 9728 metadata

@@ -52,6 +52,62 @@ explicit across MCP reconnects and transport-session changes. If `workspaceId` i
 temporarily falls back to the workspace selected in the current MCP session. That implicit
 session-based behavior is deprecated and is scheduled for removal.
 
+### Workflows
+
+These read-only tools help discover registered tasks and debug existing runs. They use the same
+workspace selection and authentication as other resource tools.
+
+| Tool | Parameters besides `workspaceId` | Purpose |
+| --- | --- | --- |
+| **list_workflows** | Optional `name`, `environmentId`, `limit`, `cursor` | Discover workflows |
+| **get_workflow** | Required `workflowId` | Inspect configuration |
+| **list_workflow_versions** | Optional `workflowId`, `limit`, `cursor` | Inspect build and task-registration states |
+| **get_workflow_version** | Required `workflowVersionId` | Inspect one version |
+| **list_workflow_tasks** | Optional `workflowId`, `workflowVersionId`, `taskSlug`, `limit`, `cursor` | Discover task IDs and versions |
+| **get_workflow_task** | Required `taskId` | Inspect a registered task |
+| **list_workflow_runs** | Optional `workflowId`, `workflowVersionId`, `taskSlug`, `rootTaskRunId`, `limit`, `cursor` | Inspect run history and parent/child relationships |
+| **get_workflow_run** | Required `taskRunId` | Inspect status, errors and zero-indexed attempts |
+| **get_workflow_run_results** | Required `taskRunId`; optional `attempt`, `offset`, `limit`, `sha256` | Retrieve run or attempt results as paged JSON text |
+
+List tools return `{ "items": [...], "nextCursor": "..." }`. Their default limit is 20,
+with a maximum of 100. Follow `nextCursor` until it is null or a page is empty. A single page
+does not represent the entire history. Count runs by unique run ID, including across pages;
+the upstream API can return duplicate run records. The current runs endpoint has no status or time filter;
+unsupported parameters are rejected rather than silently ignored.
+
+To investigate a failure, find its task with `list_workflow_tasks`, list the corresponding runs,
+and use `get_workflow_run` to inspect the failed run and its attempts. Filter `list_workflow_runs`
+by `rootTaskRunId` to inspect its run tree. Task failures are returned as successful tool reads
+with a failed run status. API and permission failures are tool errors. Do not infer attempt counts
+or queue duration from the `retries` field or timestamps alone.
+
+Run details omit inputs and results. Each error is limited to 4 KiB, with `errorTruncated: true`
+when shortened. For results, call `get_workflow_run_results` with offset 0. A nonterminal run
+(or selected attempt) returns `ready: false`. A terminal result returns JSON text in `content`,
+its byte count and SHA-256, plus `nextOffset`. Concatenate the text pages before parsing JSON;
+pass the returned `nextOffset` and `sha256` for each subsequent call. A null `nextOffset` marks
+the end. Preserve the API's array shape and numeric values. `ready: true` means the result is
+terminal, including failed or canceled runs; inspect `status` to determine success.
+The MCP adapter preserves numbers as received from REST. It cannot restore precision already lost
+upstream; use strings in task results for identifiers that must retain an exact decimal representation.
+
+Result pages default to 32 KiB and accept limits from 4 bytes to 32 KiB. Offsets count UTF-8
+bytes, not characters. The API returns the whole run detail on each read; paging bounds the MCP
+output, not the upstream download. Responses over 16 MiB are rejected. All Workflows tool output
+is limited to 256 KiB. Workspace resolution and Workflows reads share a 30-second deadline, and
+client cancellation stops pending reads. Narrow list filters or use the REST API when these
+bounds are insufficient. Task runs themselves continue independently of these read-only calls.
+
+Workflow creation, deployment, task execution and cancellation are outside this tool set.
+Use the Render Dashboard, CLI or SDK for those operations.
+
+The package and transport tests run with `go test -race ./...` and use local HTTP fixtures.
+For opt-in live validation, `pkg/workflow/testdata/live_fixture.py` defines disposable tasks for
+success, retries, large JSON results, parent/child runs and cancellation (tested with
+`render-sdk==1.1.0`). Deploy it only to a test workspace, trigger its tasks through the CLI or SDK,
+inspect them through these MCP tools, and delete the test workflow after validation. Live
+credentials and tests that create billable resources are not part of the automated Go suite.
+
 ### Services
 
 - **list_services** - List all services in your Render account
