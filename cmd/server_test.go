@@ -17,6 +17,7 @@ import (
 	"sync"
 	"testing"
 	"testing/synctest"
+	"time"
 
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
@@ -649,4 +650,153 @@ func postMCP(t *testing.T, handler http.Handler, sessionID, method string, param
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	return rec
+}
+
+type sandboxAPIFunc func(*http.Request) (*http.Response, error)
+
+func (f sandboxAPIFunc) Do(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestSandboxToolsOverHTTP(t *testing.T) {
+	var calls []string
+	terminated := false
+	api, err := client.NewClientWithResponses("https://api.example.test/v1", client.WithHTTPClient(sandboxAPIFunc(func(r *http.Request) (*http.Response, error) {
+		calls = append(calls, r.Method+" "+r.URL.Path)
+		code, body := 200, ""
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/v1/owners/"):
+			if strings.HasSuffix(r.URL.Path, "tea-denied") {
+				code = 403
+				body = `{"message":"no access"}`
+			} else {
+				body = `{"id":"tea-a"}`
+			}
+		case r.URL.Path == "/v1/sandboxes" && r.Method == "POST":
+			var input map[string]any
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&input))
+			require.Equal(t, "tea-a", input["ownerId"])
+			code = 201
+			body = `{"id":"sbx-a","status":"creating"}`
+		case r.URL.Path == "/v1/sandboxes":
+			require.Equal(t, "tea-a", r.URL.Query().Get("ownerId"))
+			body = `[{"sandbox":{"id":"sbx-a","status":"running"},"cursor":"next"}]`
+		case r.URL.Path == "/v1/sandboxes/sbx-a/terminate":
+			require.Equal(t, "tea-a", r.URL.Query().Get("ownerId"))
+			terminated = true
+			code = 204
+		case r.URL.Path == "/v1/sandboxes/sbx-a":
+			if r.URL.Query().Get("ownerId") != "tea-a" {
+				code = 404
+				body = `{"message":"not found"}`
+			} else if terminated {
+				body = `{"id":"sbx-a","status":"terminated"}`
+			} else {
+				body = `{"id":"sbx-a","status":"running"}`
+			}
+		default:
+			t.Errorf("unexpected request %s", r.URL)
+			code = 500
+		}
+		return &http.Response{StatusCode: code, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(body))}, nil
+	})))
+	require.NoError(t, err)
+	_, transport := newStreamableHTTPServer(api, session.NewInMemoryStore())
+	t.Cleanup(func() { require.NoError(t, transport.Shutdown(t.Context())) })
+	sessionID := initializeHTTPSession(t, transport)
+	create := callHTTPTool(t, transport, sessionID, "create_sandbox", map[string]any{"workspaceId": "tea-a"})
+	require.False(t, create.IsError)
+	require.Contains(t, create.Content[0].(mcp.TextContent).Text, `"status":"creating"`)
+	require.Equal(t, []string{"GET /v1/owners/tea-a", "POST /v1/sandboxes"}, calls)
+	get := callHTTPTool(t, transport, sessionID, "get_sandbox", map[string]any{"workspaceId": "tea-a", "sandboxId": "sbx-a"})
+	require.False(t, get.IsError)
+	list := callHTTPTool(t, transport, sessionID, "list_sandboxes", map[string]any{"workspaceId": "tea-a", "limit": 1})
+	require.False(t, list.IsError)
+	require.Contains(t, list.Content[0].(mcp.TextContent).Text, `"next_cursor":"next"`)
+	// A user with access to both workspaces must still be scoped to the selected one.
+	wrong := callHTTPTool(t, transport, sessionID, "get_sandbox", map[string]any{"workspaceId": "tea-b", "sandboxId": "sbx-a"})
+	require.True(t, wrong.IsError)
+	before := len(calls)
+	denied := callHTTPTool(t, transport, sessionID, "terminate_sandbox", map[string]any{"workspaceId": "tea-denied", "sandboxId": "sbx-a"})
+	require.True(t, denied.IsError)
+	require.Len(t, calls, before+1)
+	require.False(t, terminated)
+	stop := callHTTPTool(t, transport, sessionID, "terminate_sandbox", map[string]any{"workspaceId": "tea-a", "sandboxId": "sbx-a"})
+	require.False(t, stop.IsError)
+	require.Contains(t, stop.Content[0].(mcp.TextContent).Text, `"verified_terminated":true`)
+}
+
+func TestSandboxDeadlineIncludesWorkspaceResolution(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		calls := 0
+		api, err := client.NewClientWithResponses("https://api.example.test/v1", client.WithHTTPClient(sandboxAPIFunc(func(r *http.Request) (*http.Response, error) {
+			calls++
+			require.Equal(t, "/v1/owners/tea-a", r.URL.Path)
+			deadline, ok := r.Context().Deadline()
+			require.True(t, ok, "workspace lookup must be inside the Sandbox deadline")
+			require.Equal(t, 45*time.Second, time.Until(deadline))
+			<-r.Context().Done()
+			return nil, r.Context().Err()
+		})))
+		require.NoError(t, err)
+
+		for _, tool := range buildWorkspaceScopedTools(api) {
+			if tool.Tool.Name != "get_sandbox" {
+				continue
+			}
+			start := time.Now()
+			result, err := tool.Handler(t.Context(), mcp.CallToolRequest{Params: mcp.CallToolParams{
+				Name: "get_sandbox", Arguments: map[string]any{"workspaceId": "tea-a", "sandboxId": "sbx-a"},
+			}})
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			require.Equal(t, 45*time.Second, time.Since(start))
+			require.Equal(t, 1, calls, "timed-out resolution must not reach the Sandbox operation")
+			return
+		}
+		t.Fatal("get_sandbox was not registered")
+	})
+}
+
+func TestSandboxLimitIsSharedBeforeWorkspaceResolution(t *testing.T) {
+	const concurrentCalls = 16
+	entered := make(chan struct{}, concurrentCalls+1)
+	release := make(chan struct{})
+	var wg sync.WaitGroup
+	t.Cleanup(func() {
+		close(release)
+		wg.Wait()
+	})
+	api, err := client.NewClientWithResponses("https://api.example.test/v1", client.WithHTTPClient(sandboxAPIFunc(func(r *http.Request) (*http.Response, error) {
+		require.Equal(t, "/v1/owners/tea-a", r.URL.Path)
+		entered <- struct{}{}
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+		return nil, errors.New("workspace lookup unavailable")
+	})))
+	require.NoError(t, err)
+	handlers := map[string]server.ToolHandlerFunc{}
+	for _, tool := range buildWorkspaceScopedTools(api) {
+		handlers[tool.Tool.Name] = tool.Handler
+	}
+	require.Contains(t, handlers, "get_sandbox")
+	require.Contains(t, handlers, "list_sandboxes")
+	for range concurrentCalls {
+		wg.Go(func() {
+			_, _ = handlers["get_sandbox"](t.Context(), mcp.CallToolRequest{Params: mcp.CallToolParams{
+				Name: "get_sandbox", Arguments: map[string]any{"workspaceId": "tea-a", "sandboxId": "sbx-a"},
+			}})
+		})
+	}
+	for range concurrentCalls {
+		<-entered
+	}
+	// A different Sandbox tool must share the same gate, before its owner lookup.
+	result, err := handlers["list_sandboxes"](t.Context(), mcp.CallToolRequest{Params: mcp.CallToolParams{
+		Name: "list_sandboxes", Arguments: map[string]any{"workspaceId": "tea-a"},
+	}})
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	require.Contains(t, result.Content[0].(mcp.TextContent).Text, "no operation started")
+	require.Empty(t, entered)
 }

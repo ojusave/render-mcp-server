@@ -22,7 +22,12 @@ func AddHooks(hooks *server.Hooks) {
 		// results for errors. Revisit logging if we add tasks: task creation succeeding
 		// does not mean the underlying operation succeeded.
 		if result, ok := result.(*mcp.CallToolResult); ok && result != nil && result.IsError {
-			Error("tool call failed name=%s error=%s", message.Params.Name, toolResultText(result))
+			if isSandboxTool(message.Params.Name) {
+				// Sandbox failures can retain command output or file contents.
+				Error("tool call failed name=%s", message.Params.Name)
+			} else {
+				Error("tool call failed name=%s error=%s", message.Params.Name, toolResultText(result))
+			}
 			return
 		}
 		Info("tool call ok name=%s", message.Params.Name)
@@ -40,4 +45,13 @@ func toolResultText(result *mcp.CallToolResult) string {
 		}
 	}
 	return "unknown tool error"
+}
+
+func isSandboxTool(name string) bool {
+	switch name {
+	case "create_sandbox", "get_sandbox", "list_sandboxes", "run_sandbox_command", "read_sandbox_file", "write_sandbox_file", "terminate_sandbox":
+		return true
+	default:
+		return false
+	}
 }

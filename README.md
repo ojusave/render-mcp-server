@@ -205,6 +205,59 @@ session-based behavior is deprecated and is scheduled for removal.
 
   Events cover services only, not Postgres or Key Value instances. The 7 day default applies to the first page only. For older events, page with the `cursor` from the previous call; if the first page comes back empty there is no cursor to follow, so set an earlier `startTime` instead.
 
+### Sandboxes
+
+Sandbox tools use the selected workspace, or an explicit `workspaceId`. Start
+with `create_sandbox`, retain its ID, and check `get_sandbox` until the state is
+`running`. Run commands or transfer text files, retrieve wanted results, and
+call `terminate_sandbox` when finished.
+
+| Tool | Inputs and behavior |
+| --- | --- |
+| `create_sandbox` | `timeout_seconds`: integer 1–86400, default 600; `plan`: starter (default), standard, or pro; optional `region`; `network_policy`: deny-all (default), allow-all, or allow-list; `allowed_domains`: 1–100 distinct hostnames or leftmost wildcard domains, required only for allow-list. Allow-list rules permit HTTPS. Returns the allocated ID and current state without waiting for readiness. |
+| `get_sandbox` | Required `sandboxId`. Exact-ID lookup of sandbox state. |
+| `list_sandboxes` | Optional `limit`: integer 1–100, default 20; `cursor`; `statuses`. Includes all statuses unless filtered. Follow `next_cursor` until an empty page. |
+| `run_sandbox_command` | Required `sandboxId` and `command` (at most 16 KiB UTF-8). Optional `wait_timeout_seconds`: integer 1–30, default 30. Executes with bash; suspended sandboxes resume during bounded connection setup. |
+| `read_sandbox_file` | Required `sandboxId` and `path`. Returns up to 64 KiB of UTF-8 text and reports truncation. |
+| `write_sandbox_file` | Required `sandboxId`, `path`, and `content` (at most 64 KiB UTF-8). Overwrites the exact file; empty content is allowed. |
+| `terminate_sandbox` | Required `sandboxId`. Stops all processes and removes files. Reports request acceptance, observed state, and whether termination was verified. |
+
+A command's wait deadline **does not terminate the remote process**. An
+interrupted stream, timeout, or missing terminal event returns
+`execution_outcome: "unknown"`, known sandbox/execution IDs, retained output,
+and `may_still_be_running: true`. Do not automatically rerun an unknown command.
+A valid terminal event returns `execution_outcome: "exited"` and its actual
+`exit_code`. Nonzero exit codes remain visible as tool errors. Completion is
+reported to the Render API; `status_persisted: false` with an issue means this
+bookkeeping failed, even if the command exited.
+
+Connection setup has a 10-second budget and must reach a running sandbox before
+the command is submitted.
+
+Output is limited to 64 KiB across stdout and stderr and reports
+`output_truncated`. Each event is limited to 64 KiB; an interrupted or oversized
+event, or more than 4 MiB of stream data, produces an unknown outcome. Sandbox
+tool handlers have a 45-second budget including workspace resolution, with up
+to 16 concurrent calls per server instance. These are server limits, not MCP
+protocol limits. Clients can interrupt sooner. A disconnected caller might
+not receive the response, so keep the sandbox ID from creation.
+
+File paths are literal, clean paths: absolute paths address the sandbox root,
+and relative paths start in its home directory. Shell expansion is not performed.
+NUL bytes, parent traversal, and redundant separators are rejected. Reads return content
+to the agent; they do not save a file on the user's computer.
+
+Persistent sandboxes remain until explicitly terminated or their lifetime
+expires. Retrieve wanted files first. An accepted termination response alone
+does not establish a terminal state; check `verified_terminated`. This confirms
+backend state, not physical VM deletion. Ambiguous creates and writes must be
+reconciled before retrying.
+
+This initial surface does not expose snapshots, environment-variable injection,
+directory listing, binary/archive transfer, one-shot execution, or recoverable
+background results. Use the CLI or SDK for operations outside this tool surface.
+Sandbox logs and execution metadata are not a complete per-command result store.
+
 ### Logs
 
 - **list_logs** - List logs matching the provided filters
